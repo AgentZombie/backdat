@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"sort"
+	"time"
 
 	"backdat"
 	"backdat/fs"
@@ -34,14 +34,19 @@ func main() {
 		Paths: map[string]*backdat.FileEntry{},
 		IDs:   map[uint64][]*backdat.K{},
 	}
-	fps := []string{}
+	fpset := fs.FPStore("/tmp/blarg/fps")
+	fps, err := fpset.New(time.Now())
+	fatalIfError(err, "creating fingerprint file")
 
 	for s := range out {
-		fe := backdat.NewEntry(s)
-		fps = append(fps, s.Fingerprint())
+		fe, err := backdat.NewEntry(s)
+		fatalIfError(err, "making file entry")
+		fps.AddFingerprint(s.Fingerprint())
 		ss.Paths[s.Path] = fe
 		switch fe.Type {
 		case backdat.EntryTypeDir:
+			continue
+		case backdat.EntryTypeSymlink:
 			continue
 		case backdat.EntryTypeComplete:
 			b, err := ioutil.ReadFile(s.Path)
@@ -83,11 +88,5 @@ func main() {
 	je := json.NewEncoder(gzout)
 	fatalIfError(je.Encode(ss), "encoding snapshot")
 
-	fpfh, err := os.Create("/tmp/blarg/fps")
-	fatalIfError(err, "creating fingerprints file")
-	defer fpfh.Close()
-	sort.Strings(fps)
-	for _, fp := range fps {
-		fmt.Fprintln(fpfh, fp)
-	}
+	fatalIfError(fps.Close(), "closing fingerprint file")
 }

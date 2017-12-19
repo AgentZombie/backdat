@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 const (
 	EntryTypeDir = iota
+	EntryTypeSymlink
 	EntryTypeChunked
 	EntryTypeComplete
 )
@@ -52,12 +55,19 @@ type Snapshot struct {
 	IDs   map[uint64][]*K
 }
 
-func NewEntry(s Stat) *FileEntry {
+func NewEntry(s Stat) (*FileEntry, error) {
 	fe := &FileEntry{
 		Stat: s,
 	}
 	if s.IsDir {
 		fe.Type = EntryTypeDir
+	} else if s.Mode&os.ModeSymlink > 0 {
+		fe.Type = EntryTypeSymlink
+		dest, err := os.Readlink(s.Path)
+		if err != nil {
+			return nil, errors.Wrap(err, "reading link")
+		}
+		fe.K = &K{P: dest}
 	} else {
 		if s.Size < ChunkSize {
 			fe.K = &K{P: "blarg"}
@@ -67,5 +77,5 @@ func NewEntry(s Stat) *FileEntry {
 			fe.Type = EntryTypeChunked
 		}
 	}
-	return fe
+	return fe, nil
 }
