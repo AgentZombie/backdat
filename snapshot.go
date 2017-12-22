@@ -50,11 +50,6 @@ type FileEntry struct {
 	ID   int64 `json:',omitempty'`
 }
 
-type Snapshot struct {
-	Paths map[string]*FileEntry
-	IDs   map[uint64][]*K
-}
-
 func NewEntry(s Stat) (*FileEntry, error) {
 	fe := &FileEntry{
 		Stat: s,
@@ -78,4 +73,16 @@ func NewEntry(s Stat) (*FileEntry, error) {
 		}
 	}
 	return fe, nil
+}
+
+type Snapshot interface {
+	AddPath(string, *FileEntry) error
+	AddID(uint64, []*K) error
+	Close() error
+}
+
+type SnapshotStore interface {
+	ListSnapshots() ([]time.Time, error)
+	NewSnapshot() (Snapshot, time.Time, error)
+	OpenSnapshot(time.Time) (Snapshot, error)
 }

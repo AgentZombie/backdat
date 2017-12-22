@@ -1,10 +1,8 @@
 package main
 
 import (
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -30,19 +28,17 @@ func main() {
 		fatalIfError(backdat.Recurse("/home/jason/go", out), "recursing")
 	}()
 
-	ss := &backdat.Snapshot{
-		Paths: map[string]*backdat.FileEntry{},
-		IDs:   map[uint64][]*backdat.K{},
-	}
+	ss, _, err := fs.SnapshotStore("/tmp/blarg/snap").NewSnapshot()
+	fatalIfError(err, "creating snapshot")
 	fpset := fs.FPStore("/tmp/blarg/fps")
 	fps, err := fpset.New(time.Now())
-	fatalIfError(err, "creating fingerprint file")
+	fatalIfError(err, "creating fingerprint set")
 
 	for s := range out {
 		fe, err := backdat.NewEntry(s)
 		fatalIfError(err, "making file entry")
 		fps.AddFingerprint(s.Fingerprint())
-		ss.Paths[s.Path] = fe
+		ss.AddPath(s.Path, fe)
 		switch fe.Type {
 		case backdat.EntryTypeDir:
 			continue
@@ -73,20 +69,13 @@ func main() {
 				ks = append(ks, chunk.K)
 			}
 			id := binary.BigEndian.Uint64(s256.Sum(nil)[:8])
-			ss.IDs[id] = ks
+			ss.AddID(id, ks)
 			infh.Close()
 		default:
 			panic(fmt.Sprint("invalid entry type: ", fe.Type))
 		}
 	}
-	outfh, err := os.Create("/tmp/blarg/snap")
-	fatalIfError(err, "opening snapshot file")
-	defer outfh.Close()
-	gzout, err := gzip.NewWriterLevel(outfh, gzip.BestCompression)
-	fatalIfError(err, "creating compressor")
-	defer gzout.Close()
-	je := json.NewEncoder(gzout)
-	fatalIfError(je.Encode(ss), "encoding snapshot")
 
+	fatalIfError(ss.Close(), "closing snapshot file")
 	fatalIfError(fps.Close(), "closing fingerprint file")
 }
