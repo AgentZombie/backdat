@@ -9,9 +9,9 @@ import (
 	"backdat"
 )
 
-type Store string
+type ChunkStore string
 
-func (s Store) Store(ch string, ct []byte) error {
+func (s ChunkStore) Store(ch string, ct []byte) error {
 	outPath := filepath.Join(string(s), ch)
 	outfh, err := os.Create(outPath)
 	if err != nil {
@@ -22,7 +22,7 @@ func (s Store) Store(ch string, ct []byte) error {
 	return errors.Wrap(err, "writing chunk file")
 }
 
-func (s Store) Read(ch string) ([]byte, error) {
+func (s ChunkStore) Read(ch string) ([]byte, error) {
 	inPath := filepath.Join(string(s), ch)
 	infh, err := os.Open(inPath)
 	if err != nil {
@@ -34,7 +34,7 @@ func (s Store) Read(ch string) ([]byte, error) {
 	return ct, errors.Wrap(err, "reading chunk file")
 }
 
-func (s Store) Has(ch string) (bool, error) {
+func (s ChunkStore) Has(ch string) (bool, error) {
 	inPath := filepath.Join(string(s), ch)
 	_, err := os.Stat(inPath)
 	if os.IsNotExist(err) {
@@ -46,7 +46,7 @@ func (s Store) Has(ch string) (bool, error) {
 	return true, nil
 }
 
-func (s Store) List(out chan string, errs chan error, abort chan interface{}) {
+func (s ChunkStore) List(out chan string, errs chan error, abort chan interface{}) {
 	defer close(out)
 	defer close(errs)
 	infh, err := os.Open(string(s))
@@ -69,7 +69,7 @@ func (s Store) List(out chan string, errs chan error, abort chan interface{}) {
 	}
 }
 
-func (s Store) Delete(ch string) error {
+func (s ChunkStore) Delete(ch string) error {
 	delPath := filepath.Join(string(s), ch)
 	return errors.Wrap(os.Remove(delPath), "deleting chunk")
 }

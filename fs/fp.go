@@ -1,7 +1,10 @@
 package fs
 
 import (
+	"backdat"
+	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -16,14 +19,45 @@ const (
 type FPStore string
 
 func (path FPStore) ListFingerprintSets() ([]time.Time, error) {
-	return nil, nil
+	fis, err := ioutil.ReadDir(string(path))
+	if err != nil {
+		return nil, errors.Wrap(err, "listing fingerprint sets")
+	}
+	times := []time.Time{}
+	for _, fi := range fis {
+		if !fi.Mode().IsRegular() {
+			continue
+		}
+		t, err := time.Parse(FPSetFormat, fi.Name())
+		if err != nil {
+			continue
+		}
+		times = append(times, t)
+	}
+	return times, nil
 }
 
-func (path FPStore) OpenFingerprintSet(time.Time) (*FP, error) {
-	return nil, nil
+func (path FPStore) OpenFingerprintSet(t time.Time) (backdat.FP, error) {
+	inpath := filepath.Join(string(path), t.Format(FPSetFormat))
+	infh, err := os.Open(inpath)
+	if err != nil {
+		return nil, errors.Wrap(err, "opening fingerprint set")
+	}
+	scanner := bufio.NewScanner(infh)
+	fp := &FP{
+		fps: map[string]bool{},
+	}
+	for scanner.Scan() {
+		line := scanner.Text()
+		fp.fps[line] = true
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, errors.Wrap(err, "reading fingerprint set")
+	}
+	return fp, nil
 }
 
-func (path FPStore) New(t time.Time) (*FP, error) {
+func (path FPStore) NewFingerprintSet(t time.Time) (backdat.FP, error) {
 	fp := &FP{
 		fps:  map[string]bool{},
 		t:    t,
@@ -49,6 +83,9 @@ func (f FP) HaveFingerprint(fp string) (bool, error) {
 }
 
 func (f FP) Close() error {
+	if f.t.IsZero() || f.path == "" {
+		return errors.New("read-only fingerprint set")
+	}
 	outpath := filepath.Join(f.path, f.t.UTC().Format(FPSetFormat))
 	outfh, err := os.Create(outpath)
 	if err != nil {
